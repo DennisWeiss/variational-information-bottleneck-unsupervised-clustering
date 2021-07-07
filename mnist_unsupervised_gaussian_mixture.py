@@ -2,10 +2,12 @@ import tensorflow as tf
 import tensorflow.contrib.distributions
 from tensorflow.examples.tutorials.mnist import input_data
 import tensorflow.contrib.distributions as tfd
+import sklearn.cluster
+import numpy as np
 import math
 import sys
 
-BETA = 1e-4
+BETA = 1
 EPOCHS = 40
 
 
@@ -87,19 +89,21 @@ def model(images, weights, bias):
 
 encoding_distribution, output_distribution = model(images, weights, bias)
 
-mixture_probabilities = list(map(lambda _: 1 / (28 * 28), range(28 * 28)))
-mixture_components = list(map(lambda i: tf.contrib.distributions.Normal(0.0, 1.0), range(28 * 28)))
+mixture_probabilities = list(map(lambda _: 1 / 10, range(10)))
+mixture_components = list(map(lambda i: tf.contrib.distributions.Normal(0.0, 1.0), range(10)))
 
 prior = tf.contrib.distributions.Mixture(
     cat=tf.contrib.distributions.Categorical(probs=mixture_probabilities),
     components=mixture_components
 )
 
-class_loss = tf.reduce_mean(-tf.reduce_sum(images * tf.log(output_distribution + 1e-10) + (1 - images) * tf.log(1 - output_distribution + 1e-10), axis=1))
+class_loss = tf.reduce_mean(-tf.reduce_sum(images * tf.log(output_distribution + 1e-16) + (1 - images) * tf.log(1 - output_distribution + 1e-16), axis=1))
 
 info_loss = tf.constant(0.0)
 for mixture_component in prior.components:
-    info_loss += tf.reduce_sum(tf.reduce_mean(tfd.kl_divergence(encoding_distribution, mixture_component), 0)) / math.log(2)
+    info_loss += tf.exp(-tf.reduce_mean(tf.reduce_mean(tfd.kl_divergence(encoding_distribution, mixture_component), 0)) / math.log(2)) / 10
+
+info_loss = -tf.math.log(info_loss + 1e-16)
 
 total_loss = class_loss + BETA * info_loss
 
@@ -122,16 +126,27 @@ merged_summary_op = tf.summary.merge_all()
 
 
 def evaluate_test():
-    class_loss_value, info_loss_value, total_loss_value = sess.run([class_loss, info_loss, total_loss], feed_dict={images: mnist.test.images, labels: mnist.test.labels})
-    return class_loss_value, info_loss_value, total_loss_value
+    class_loss_value, info_loss_value, total_loss_value, encoding_value = sess.run([class_loss, info_loss, total_loss, encoding_distribution.sample()], feed_dict={images: mnist.test.images, labels: mnist.test.labels})
+    return class_loss_value, info_loss_value, total_loss_value, encoding_value
 
 
 for epoch in range(EPOCHS):
     for step in range(int(steps_per_batch)):
         im, ls = mnist.train.next_batch(batch_size)
-        _, c = sess.run([train_tensor, class_loss], feed_dict={images: im, labels: ls})
-    print("{}: class_loss={:.3f}\t info_loss={:.3f}\t total_loss={:.5f}".format(epoch, *evaluate_test()))
+        sess.run([train_tensor], feed_dict={images: im, labels: ls})
+
+    class_loss_value, info_loss_value, total_loss_value, encoding_value = evaluate_test()
+    
+    clustering = sklearn.cluster.KMeans(n_clusters=10).fit_predict(encoding_value)
+    print(clustering)
+    actual_labels = np.argmax(mnist.test.labels, axis=1)
+    print(actual_labels)
+    
+    print("After epoch {}: class_loss={:.3f}\t info_loss={:.3f}\t total_loss={:.5f}".format(epoch + 1, class_loss_value, info_loss_value, total_loss_value))
     # for mixture_component in prior.components:
-    #     mixture_component_value = sess.rund(mixture_component)
+    #     mixture_component_value = sess.run(mixture_component)
     #     print(mixture_component_value.loc)
     sys.stdout.flush()
+
+
+
