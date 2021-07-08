@@ -2,10 +2,13 @@ import tensorflow as tf
 import tensorflow.contrib.distributions
 from tensorflow.examples.tutorials.mnist import input_data
 import tensorflow.contrib.distributions as tfd
+import sklearn.metrics
 import sklearn.cluster
 import numpy as np
+import seaborn as sns
 import math
 import sys
+import matplotlib.pyplot as plt
 
 BETA = 1
 EPOCHS = 40
@@ -141,7 +144,10 @@ for epoch in range(EPOCHS):
     print(clustering)
     actual_labels = np.argmax(mnist.test.labels, axis=1)
     print(actual_labels)
-    
+    confusion_matrix = sklearn.metrics.confusion_matrix(actual_labels, clustering)
+    sns.heatmap(confusion_matrix, annot=True, fmt='d')
+    plt.show()
+
     print("After epoch {}: class_loss={:.3f}\t info_loss={:.3f}\t total_loss={:.5f}".format(epoch + 1, class_loss_value, info_loss_value, total_loss_value))
     # for mixture_component in prior.components:
     #     mixture_component_value = sess.run(mixture_component)
