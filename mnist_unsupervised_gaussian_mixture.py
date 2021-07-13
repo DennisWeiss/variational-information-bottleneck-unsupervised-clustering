@@ -1,5 +1,4 @@
 import tensorflow as tf
-import tensorflow.contrib.distributions
 from tensorflow.examples.tutorials.mnist import input_data
 import tensorflow.contrib.distributions as tfd
 import sklearn.metrics
@@ -11,9 +10,9 @@ import sys
 import matplotlib.pyplot as plt
 
 BETA = 1
-EPOCHS = 40
+EPOCHS = 200
 
-
+tf.logging.set_verbosity(tf.logging.ERROR)
 tf.reset_default_graph()
 
 config = tf.ConfigProto()
@@ -61,7 +60,7 @@ def encoder(images, weights, bias):
     layer_2 = tf.nn.relu(tf.add(tf.matmul(layer_1, W2), b2))
     layer_3 = tf.nn.relu(tf.add(tf.matmul(layer_2, W3), b3))
     encoding_layer = tf.add(tf.matmul(layer_3, W4), b4)
-    encoding_distribution = tf.contrib.distributions.NormalWithSoftplusScale(encoding_layer[:, :encoding_dimension], encoding_layer[:, encoding_dimension:])
+    encoding_distribution = tfd.NormalWithSoftplusScale(encoding_layer[:, :encoding_dimension], encoding_layer[:, encoding_dimension:])
 
     return encoding_distribution
 
@@ -93,10 +92,10 @@ def model(images, weights, bias):
 encoding_distribution, output_distribution = model(images, weights, bias)
 
 mixture_probabilities = list(map(lambda _: 1 / 10, range(10)))
-mixture_components = list(map(lambda i: tf.contrib.distributions.Normal(0.0, 1.0), range(10)))
+mixture_components = list(map(lambda i: tfd.Normal(0.0, 1.0), range(10)))
 
-prior = tf.contrib.distributions.Mixture(
-    cat=tf.contrib.distributions.Categorical(probs=mixture_probabilities),
+prior = tfd.Mixture(
+    cat=tfd.Categorical(probs=mixture_probabilities),
     components=mixture_components
 )
 
@@ -137,10 +136,10 @@ for epoch in range(EPOCHS):
         im, ls = mnist.train.next_batch(batch_size)
         sess.run([train_tensor], feed_dict={images: im, labels: ls})
 
-    train_class_loss_value, train_info_loss_value, train_total_loss_value, encoding_value = evaluate(mnist.train)
-    test_class_loss_value, test_info_loss_value, test_total_loss_value, encoding_value = evaluate(mnist.test)
+    train_class_loss_value, train_info_loss_value, train_total_loss_value, train_encoding_value = evaluate(mnist.train)
+    test_class_loss_value, test_info_loss_value, test_total_loss_value, test_encoding_value = evaluate(mnist.test)
 
-    clustering = sklearn.cluster.KMeans(n_clusters=10).fit_predict(encoding_value)
+    clustering = sklearn.cluster.KMeans(n_clusters=10).fit_predict(test_encoding_value)
     actual_labels = np.argmax(mnist.test.labels, axis=1)
     confusion_matrix = sklearn.metrics.confusion_matrix(actual_labels, clustering)
     sns.heatmap(confusion_matrix, annot=True, fmt='d')
