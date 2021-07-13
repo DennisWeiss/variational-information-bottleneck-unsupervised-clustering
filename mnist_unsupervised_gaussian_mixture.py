@@ -128,27 +128,25 @@ tf.global_variables_initializer().run()
 merged_summary_op = tf.summary.merge_all()
 
 
-def evaluate_test():
-    class_loss_value, info_loss_value, total_loss_value, encoding_value = sess.run([class_loss, info_loss, total_loss, encoding_distribution.sample()], feed_dict={images: mnist.test.images, labels: mnist.test.labels})
+def evaluate(data):
+    class_loss_value, info_loss_value, total_loss_value, encoding_value = sess.run([class_loss, info_loss, total_loss, encoding_distribution.sample()], feed_dict={images: data.images, labels: data.labels})
     return class_loss_value, info_loss_value, total_loss_value, encoding_value
-
 
 for epoch in range(EPOCHS):
     for step in range(int(steps_per_batch)):
         im, ls = mnist.train.next_batch(batch_size)
         sess.run([train_tensor], feed_dict={images: im, labels: ls})
 
-    class_loss_value, info_loss_value, total_loss_value, encoding_value = evaluate_test()
-    
+    train_class_loss_value, train_info_loss_value, train_total_loss_value, encoding_value = evaluate(mnist.train)
+    test_class_loss_value, test_info_loss_value, test_total_loss_value, encoding_value = evaluate(mnist.test)
+
     clustering = sklearn.cluster.KMeans(n_clusters=10).fit_predict(encoding_value)
-    print(clustering)
     actual_labels = np.argmax(mnist.test.labels, axis=1)
-    print(actual_labels)
     confusion_matrix = sklearn.metrics.confusion_matrix(actual_labels, clustering)
     sns.heatmap(confusion_matrix, annot=True, fmt='d')
     plt.show()
 
-    print("After epoch {}: class_loss={:.3f}\t info_loss={:.3f}\t total_loss={:.5f}".format(epoch + 1, class_loss_value, info_loss_value, total_loss_value))
+    print("After epoch {}: train_class_loss={:.3f}\t train_info_loss={:.3f}\t train_total_loss={:.5f}\n\t\t\t   test_class_loss={:.3f}\t test_info_loss={:.3f}\t test_total_loss={:.5f}".format(epoch + 1, train_class_loss_value, train_info_loss_value, train_total_loss_value, test_class_loss_value, test_info_loss_value, test_total_loss_value))
     # for mixture_component in prior.components:
     #     mixture_component_value = sess.run(mixture_component)
     #     print(mixture_component_value.loc)
